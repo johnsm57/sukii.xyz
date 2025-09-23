@@ -2,8 +2,11 @@
 
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useAuthContext } from "@/contexts/AuthContext"; // Adjust import path as needed
+// Alternative: import { useAuth } from "@/hooks/useAuth";
 
 const EventCard = ({
+  eventId, // Add eventId prop for backend identification
   isVirtual = false,
   title = "Event Title",
   description = "Event description goes here...",
@@ -15,17 +18,66 @@ const EventCard = ({
 }) => {
   const [isJoined, setIsJoined] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Get user from Firebase Auth context
+  const { user } = useAuthContext();
 
   const handleJoinClick = async () => {
+    // Prevent multiple clicks or if already joined
     if (isJoined || isLoading) return;
 
-    setIsLoading(true);
+    // Check if user is authenticated
+    if (!user?.email) {
+      setError("Please sign in to join events");
+      return;
+    }
 
-    setTimeout(() => {
+    // Check if eventId is provided
+    if (!eventId) {
+      setError("Event ID is missing");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/event-signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: user.email,
+          eventId: eventId,
+          userDisplayName: user.displayName || null,
+          userId: user.uid,
+        }),
+      });
+
+      // Check if response is ok
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || `HTTP ${response.status}: Failed to join event`
+        );
+      }
+
+      const data = await response.json();
+
+      // Success handling
       setIsJoined(true);
+      onActionClick(data); // Pass response data to parent component
+
+      // Optional: Show success toast/notification
+      console.log("Successfully joined event:", data);
+    } catch (error) {
+      console.error("Error joining event:", error);
+      setError(error.message || "Failed to join event. Please try again.");
+    } finally {
       setIsLoading(false);
-      onActionClick();
-    }, 1500);
+    }
   };
 
   return (
@@ -114,10 +166,17 @@ const EventCard = ({
           {description}
         </p>
 
+        {/* Error Message */}
+        {error && (
+          <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
+            <p className="text-red-200 text-sm">{error}</p>
+          </div>
+        )}
+
         {/* Join Button */}
         <button
           onClick={handleJoinClick}
-          disabled={isJoined || isLoading}
+          disabled={isJoined || isLoading || !user?.email}
           className={cn(
             "w-full mt-4 py-3 px-6 rounded-xl",
             "border shadow-lg",
@@ -128,8 +187,10 @@ const EventCard = ({
               ? "bg-gradient-to-r from-emerald-500 to-green-500 border-emerald-400/30 shadow-emerald-500/20"
               : isLoading
               ? "bg-gradient-to-r from-purple-500/70 to-indigo-500/70 border-purple-400/20 shadow-purple-500/10"
+              : !user?.email
+              ? "bg-gradient-to-r from-gray-500 to-gray-600 border-gray-400/30 shadow-gray-500/20 cursor-not-allowed"
               : "bg-gradient-to-r from-purple-500 to-indigo-500 border-purple-400/30 shadow-purple-500/20 hover:from-purple-400 hover:to-indigo-400 hover:border-purple-300/50 hover:shadow-xl hover:shadow-purple-500/40 hover:-translate-y-1 hover:scale-[1.02] active:scale-[0.98]",
-            (isJoined || isLoading) && "cursor-not-allowed"
+            (isJoined || isLoading || !user?.email) && "cursor-not-allowed"
           )}
         >
           {isLoading && (
@@ -179,6 +240,8 @@ const EventCard = ({
                 </svg>
                 Joined Successfully!
               </>
+            ) : !user?.email ? (
+              "Sign In to Join"
             ) : (
               <>
                 Join Event

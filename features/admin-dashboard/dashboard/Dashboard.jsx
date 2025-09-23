@@ -10,28 +10,7 @@ import EditEventModal from "./components/EditEventModal";
 import AttendeesModal from "./components/AttendeesModal";
 
 const EventDashboard = () => {
-  const [events, setEvents] = useState([
-    {
-      id: 1,
-      title: "Tech Conference 2025",
-      name: "Annual Technology Summit",
-      description:
-        "Join us for the biggest tech conference of the year featuring industry leaders and innovative startups.",
-      location: "San Francisco Convention Center",
-      medium: "physical",
-      thumbnail: null,
-      totalSlots: 500,
-      joinedPeople: [
-        { email: "john.doe@example.com", joinedAt: "2025-09-10T10:30:00Z" },
-        {
-          email: "sarah.wilson@techcorp.com",
-          joinedAt: "2025-09-11T14:20:00Z",
-        },
-        { email: "mike.johnson@startup.io", joinedAt: "2025-09-12T09:15:00Z" },
-      ],
-      createdAt: "2025-09-01T12:00:00Z",
-    },
-  ]);
+  const [events, setEvents] = useState([]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -41,38 +20,85 @@ const EventDashboard = () => {
     title: "",
     name: "",
     description: "",
-    location: "",
-    medium: "physical",
-    thumbnail: null,
-    totalSlots: 100,
+    date: "",
+    medium: "virtual",
+    imgUrl: null,
   });
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const resetForm = () => {
     setCurrentEvent({
       title: "",
       name: "",
+      date: "",
       description: "",
-      location: "",
-      medium: "physical",
-      thumbnail: null,
-      totalSlots: 100,
+      medium: "virtual",
+      imgUrl: null,
     });
   };
 
-  const handleCreateEvent = () => {
-    if (!currentEvent.title || !currentEvent.name || !currentEvent.description)
+  const handleCreateEvent = async () => {
+    // Add detailed validation logging
+    if (
+      !currentEvent.title ||
+      !currentEvent.description ||
+      !currentEvent.date ||
+      !currentEvent.imgUrl ||
+      !currentEvent.medium
+    ) {
+      const missing = [];
+      if (!currentEvent.title) missing.push("title");
+      if (!currentEvent.description) missing.push("description");
+      if (!currentEvent.date) missing.push("date");
+      if (!currentEvent.imgUrl) missing.push("image");
+      if (!currentEvent.medium) missing.push("medium");
+
+      setError(`Please fill in all required fields: ${missing.join(", ")}`);
+      console.log("Current event state:", currentEvent); // Debug log
       return;
+    }
 
-    const newEvent = {
-      id: Date.now(),
-      ...currentEvent,
-      joinedPeople: [],
-      createdAt: new Date().toISOString(),
-    };
+    setLoading(true);
+    setError("");
 
-    setEvents([...events, newEvent]);
-    setShowCreateModal(false);
-    resetForm();
+    try {
+      const response = await fetch("/api/create-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: currentEvent.title,
+          description: currentEvent.description,
+          date: currentEvent.date,
+          imgUrl: currentEvent.imgUrl,
+          eventMedium: currentEvent.medium,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to create event");
+      }
+
+      console.log("Event created:", data);
+
+      // Ensure the created event has the required properties
+      const newEvent = {
+        ...data.event,
+        joinedPeople: data.event.joinedPeople || [],
+        totalSlots: data.event.totalSlots || 50, // Default to 50 if not provided
+      };
+
+      setEvents([...events, newEvent]);
+      setShowCreateModal(false);
+      resetForm();
+    } catch (error) {
+      console.error("Create event error:", error);
+      setError(`Failed to create event: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEditEvent = () => {
@@ -99,10 +125,9 @@ const EventDashboard = () => {
       title: event.title,
       name: event.name,
       description: event.description,
-      location: event.location,
       medium: event.medium,
       thumbnail: event.thumbnail,
-      totalSlots: event.totalSlots,
+      date: event.date,
     });
     setShowEditModal(true);
   };
@@ -113,14 +138,18 @@ const EventDashboard = () => {
   };
 
   const totalEvents = events.length;
+
+  // Fixed: Add null checks and default values
   const totalAttendees = events.reduce(
-    (total, event) => total + event.joinedPeople.length,
+    (total, event) => total + (event.joinedPeople?.length || 0),
     0
   );
-  const availableSlots = events.reduce(
-    (total, event) => total + (event.totalSlots - event.joinedPeople.length),
-    0
-  );
+
+  const availableSlots = events.reduce((total, event) => {
+    const joined = event.joinedPeople?.length || 0;
+    const total_slots = event.totalSlots || 0;
+    return total + Math.max(0, total_slots - joined);
+  }, 0);
 
   return (
     <div className="min-h-screen bg-gray-900">
@@ -212,27 +241,8 @@ const EventDashboard = () => {
         currentEvent={currentEvent}
         setCurrentEvent={setCurrentEvent}
         onSave={handleCreateEvent}
-      />
-
-      <EditEventModal
-        isOpen={showEditModal}
-        onClose={() => {
-          setShowEditModal(false);
-          setSelectedEvent(null);
-          resetForm();
-        }}
-        currentEvent={currentEvent}
-        setCurrentEvent={setCurrentEvent}
-        onSave={handleEditEvent}
-      />
-
-      <AttendeesModal
-        isOpen={showAttendeesModal}
-        onClose={() => {
-          setShowAttendeesModal(false);
-          setSelectedEvent(null);
-        }}
-        event={selectedEvent}
+        error={error}
+        loading={loading}
       />
     </div>
   );

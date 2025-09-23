@@ -4,6 +4,8 @@ const eventEmailSignupSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
+    trim: true,
+    lowercase: true,
   },
 });
 
@@ -30,18 +32,14 @@ const eventSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    emailSignups: {
-      type: Number,
-      default: 0,
+    attendeesEmail: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "EventEmailSignup",
     },
     eventMedium: {
       type: String, // Changed from Boolean to String
       enum: ["virtual", "physical"],
       default: "virtual",
-    },
-    attendees: {
-      type: Number,
-      default: 0,
     },
   },
   { timestamps: true }
