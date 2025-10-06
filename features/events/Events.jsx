@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import EventCard from "./components/EventCard";
-import { useAuthContext } from "@/contexts/AuthContext"; // Adjust import path as needed
+import { useAuthContext } from "@/features/authentication/context/AuthContext";
 
 const EventsPage = () => {
   const [events, setEvents] = useState([]);
@@ -32,11 +32,10 @@ const EventsPage = () => {
           headers["Authorization"] = `Bearer ${idToken}`;
         } catch (tokenError) {
           console.warn("Failed to get ID token:", tokenError);
-          // Continue without token for public events
         }
       }
 
-      const response = await fetch("/api/events", {
+      const response = await fetch("/api/fetch-events", {
         method: "GET",
         headers,
       });
@@ -46,14 +45,32 @@ const EventsPage = () => {
       }
 
       const data = await response.json();
+      console.log("API Response:", data);
 
-      // Validate response structure
-      if (!Array.isArray(data.events)) {
-        throw new Error("Invalid response format: events should be an array");
+      let eventsArray = [];
+
+      if (data && data.success && Array.isArray(data.data)) {
+        eventsArray = data.data;
+      } else if (Array.isArray(data)) {
+        eventsArray = data;
+      } else if (data && Array.isArray(data.events)) {
+        eventsArray = data.events;
+      } else {
+        throw new Error(
+          `Invalid response format. Expected {success: true, data: [...]}, got: ${JSON.stringify(
+            data
+          )}`
+        );
       }
 
-      setEvents(data.events);
-      setRetryCount(0); // Reset retry count on success
+      // ✅ Map backend data to include attendee count
+      const eventsWithCounts = eventsArray.map((event) => ({
+        ...event,
+        attendeeCount: event.attendeesEmail?.length || 0,
+      }));
+
+      setEvents(eventsWithCounts);
+      setRetryCount(0);
     } catch (error) {
       console.error("Error fetching events:", error);
       setError(error.message || "Failed to load events. Please try again.");
@@ -62,30 +79,63 @@ const EventsPage = () => {
     }
   };
 
-  // Initial fetch on component mount
   useEffect(() => {
     fetchEvents();
-  }, [user]); // Refetch when user authentication changes
+  }, [user]);
 
-  // Handle retry
   const handleRetry = () => {
     setRetryCount((prev) => prev + 1);
     fetchEvents(true);
   };
 
-  // Handle successful event join
-  const handleEventJoin = (eventId, responseData) => {
-    // Update the events state to reflect the join status
-    setEvents((prevEvents) =>
-      prevEvents.map((event) =>
-        event.id === eventId
-          ? { ...event, isJoined: true, joinedAt: new Date().toISOString() }
-          : event
-      )
-    );
+  // ✅ NEW: Handle event signup with email and eventId
+  const handleEventJoin = async (eventId, email) => {
+    if (!email) {
+      alert("Please provide your email address");
+      return;
+    }
 
-    // Optional: Show success notification
-    console.log(`Successfully joined event ${eventId}:`, responseData);
+    try {
+      console.log("Signing up for event:", { eventId, email });
+
+      const response = await fetch("/api/event-signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          eventId: eventId, // ✅ Pass eventId
+          email: email,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to sign up for event");
+      }
+
+      // ✅ Update local state to reflect signup
+      setEvents((prevEvents) =>
+        prevEvents.map((event) =>
+          event._id === eventId
+            ? {
+                ...event,
+                isJoined: true,
+                joinedAt: new Date().toISOString(),
+                attendeeCount: (event.attendeeCount || 0) + 1, // Increment count
+              }
+            : event
+        )
+      );
+
+      console.log("✅ Successfully signed up:", data);
+      return { success: true, data };
+    } catch (error) {
+      console.error("❌ Signup error:", error);
+      alert(error.message || "Failed to sign up. Please try again.");
+      return { success: false, error: error.message };
+    }
   };
 
   // Loading component
@@ -169,7 +219,7 @@ const EventsPage = () => {
   );
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-900 overflow-hidden">
+    <div className="relative min-h-screen bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-900 overflow-x-hidden">
       <div className="absolute inset-0">
         <Header />
 
@@ -221,22 +271,28 @@ const EventsPage = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                 {events.map((event) => (
                   <EventCard
-                    key={event.id}
-                    eventId={event.id}
-                    isVirtual={event.isVirtual || false}
+                    key={event._id}
+                    eventId={event._id} // ✅ Pass eventId
+                    isVirtual={event.eventMedium === "virtual"} // ✅ Use eventMedium from schema
                     title={event.title || "Event Title"}
                     description={
                       event.description || "Event description goes here..."
                     }
                     time={event.time || "10:00 AM"}
-                    date={event.date || "Dec 15, 2024"}
+                    date={
+                      event.date
+                        ? new Date(event.date).toLocaleDateString()
+                        : "Dec 15, 2024"
+                    }
                     imageUrl={
-                      event.imageUrl || event.image || "/modern-event-venue.png"
+                      event.imgUrl ||
+                      event.imageUrl ||
+                      "/modern-event-venue.png"
                     }
                     isJoined={event.isJoined || false}
-                    onActionClick={(responseData) =>
-                      handleEventJoin(event.id, responseData)
-                    }
+                    attendeeCount={event.attendeeCount || 0} // ✅ Pass attendee count
+                    totalSlots={event.totalSlots || 50} // ✅ Pass total slots
+                    onActionClick={handleEventJoin} // ✅ Pass the signup handler
                     className={
                       event.featured ? "ring-2 ring-purple-400/50" : ""
                     }

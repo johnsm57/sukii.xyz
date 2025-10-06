@@ -23,14 +23,14 @@ const CreateEventModal = ({
       formData.append("image", file);
 
       try {
-        console.log("Uploading file:", file.name); // Debug log
+        console.log("Uploading file:", file.name);
         const res = await fetch("/api/image-upload", {
           method: "POST",
           body: formData,
         });
 
         const data = await res.json();
-        console.log("Upload response:", data); // Debug log
+        console.log("Upload response:", data);
 
         if (res.ok && data.url) {
           setCurrentEvent({ ...currentEvent, imgUrl: data.url });
@@ -49,10 +49,49 @@ const CreateEventModal = ({
 
   const removeImage = () => {
     setCurrentEvent({ ...currentEvent, imgUrl: null });
-    // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  // Convert 24-hour time to 12-hour format with AM/PM for storage
+  const handleTimeChange = (e) => {
+    const timeValue = e.target.value; // HH:MM format (24-hour)
+
+    if (!timeValue) {
+      setCurrentEvent({ ...currentEvent, time: "" });
+      return;
+    }
+
+    const [hours, minutes] = timeValue.split(":");
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const hour12 = hour % 12 || 12;
+    const time12Hour = `${hour12}:${minutes} ${ampm}`;
+
+    setCurrentEvent({
+      ...currentEvent,
+      time: time12Hour, // Store as "7:15 PM" format
+    });
+  };
+
+  // Convert 12-hour time back to 24-hour format for the input
+  const convertTo24Hour = (time12) => {
+    if (!time12) return "";
+
+    const match = time12.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!match) return "";
+
+    let [, hours, minutes, period] = match;
+    hours = parseInt(hours, 10);
+
+    if (period.toUpperCase() === "PM" && hours !== 12) {
+      hours += 12;
+    } else if (period.toUpperCase() === "AM" && hours === 12) {
+      hours = 0;
+    }
+
+    return `${hours.toString().padStart(2, "0")}:${minutes}`;
   };
 
   return (
@@ -65,16 +104,6 @@ const CreateEventModal = ({
             setCurrentEvent({ ...currentEvent, title: e.target.value })
           }
           placeholder="Enter event title"
-          required
-        />
-
-        <FormInput
-          label="Event Name"
-          value={currentEvent.name}
-          onChange={(e) =>
-            setCurrentEvent({ ...currentEvent, name: e.target.value })
-          }
-          placeholder="Enter event name"
           required
         />
 
@@ -122,15 +151,35 @@ const CreateEventModal = ({
           </div>
         </div>
 
-        <FormInput
-          label="Date"
-          type="date"
-          value={currentEvent.date || ""}
-          onChange={(e) =>
-            setCurrentEvent({ ...currentEvent, date: e.target.value })
-          }
-          required
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormInput
+            label="Date"
+            type="date"
+            value={currentEvent.date || ""}
+            onChange={(e) =>
+              setCurrentEvent({ ...currentEvent, date: e.target.value })
+            }
+            required
+          />
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-300 mb-2">
+              Time
+            </label>
+            <input
+              type="time"
+              value={convertTo24Hour(currentEvent.time) || ""}
+              onChange={handleTimeChange}
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-600 text-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              required
+            />
+            {currentEvent.time && (
+              <p className="text-xs text-gray-400 mt-1">
+                Stored as: {currentEvent.time}
+              </p>
+            )}
+          </div>
+        </div>
 
         <div className="mb-6">
           <label className="block text-sm font-semibold text-gray-300 mb-2">
@@ -158,7 +207,6 @@ const CreateEventModal = ({
               {uploading ? "Uploading..." : "Upload Image"}
             </button>
 
-            {/* Fixed: Changed from currentEvent.thumbnail to currentEvent.imgUrl */}
             {currentEvent.imgUrl && (
               <div className="relative">
                 <Image
@@ -189,15 +237,14 @@ const CreateEventModal = ({
           <button
             onClick={onClose}
             disabled={uploading}
-            className="flex-1 px-6 py-3 border border-gray-600 bg-gray-700 text-gray-300 rounded-xl font-semibold hover:bg-gray-600 transition-colors disabled:opacity-50"
+            className="flex-1 px-6 py-3 border border-gray-600 bg-gray-800 text-gray-300 rounded-xl font-semibold hover:bg-gray-600 transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
-            onClick={onSave}
+            onClick={() => onSave(currentEvent)}
             disabled={uploading}
-            className="flex-1 px-6 py-3 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
-            style={{ backgroundColor: "oklch(0.21 0.034 264.665)" }}
+            className="flex-1 px-6 py-3 text-white bg-gray-900 rounded-xl font-semibold hover:opacity-70 transition-opacity disabled:opacity-50"
           >
             Create Event
           </button>

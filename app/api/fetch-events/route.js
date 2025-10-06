@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectDB from "@/shared/config/database";
-import Event from "@/shared/models/Event"; // Adjust path as needed
+import { Event } from "@/models/createEvent"; // Adjust path as needed
 
 export async function GET() {
   try {

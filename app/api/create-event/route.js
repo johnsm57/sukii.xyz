@@ -6,10 +6,17 @@ export async function POST(request) {
     await connectDB();
     const body = await request.json();
     console.log("Request Body:", body); // Debugging line
-    const { title, description, date, imgUrl, eventMedium, attendeesEmail } =
-      body;
+    const {
+      title,
+      description,
+      date,
+      time,
+      imgUrl,
+      eventMedium,
+      attendeesEmail,
+    } = body;
 
-    if (!title || !description || !date || !imgUrl || !eventMedium) {
+    if (!title || !description || !time || !date || !imgUrl || !eventMedium) {
       return NextResponse.json(
         { message: "All fields are required" },
         { status: 400 }
@@ -19,6 +26,7 @@ export async function POST(request) {
       title,
       description,
       date,
+      time,
       attendeesEmail,
       imgUrl,
       eventMedium,

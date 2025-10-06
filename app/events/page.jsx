@@ -1,10 +1,10 @@
 import React from "react";
 import Maintenance from "@/components/maintenance/maintenance";
-//import EventsPage from "@/features/events/Events";
+import EventsPage from "@/features/events/Events";
 export default function Events() {
   return (
     <div>
-      <Maintenance page="Events" />
+      <EventsPage />
     </div>
   );
 }

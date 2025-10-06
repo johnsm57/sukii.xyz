@@ -1,27 +1,44 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useState } from "react";
-import { useAuthContext } from "@/contexts/AuthContext"; // Adjust import path as needed
-// Alternative: import { useAuth } from "@/hooks/useAuth";
+import { useState, useEffect } from "react";
+import { useAuthContext } from "@/features/authentication/context/AuthContext";
 
 const EventCard = ({
-  eventId, // Add eventId prop for backend identification
+  eventId, // MongoDB _id for the event
   isVirtual = false,
   title = "Event Title",
   description = "Event description goes here...",
   time = "10:00 AM",
   date = "Dec 15, 2024",
-  imageUrl = "/modern-event-venue.png",
-  onActionClick = () => {},
+  imageUrl = "/",
+  attendeeCount = 0,
+  totalSlots = 50,
+  onActionClick = () => {}, // Callback to parent for state updates
   className = "",
 }) => {
   const [isJoined, setIsJoined] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [localAttendeeCount, setLocalAttendeeCount] = useState(attendeeCount);
 
   // Get user from Firebase Auth context
   const { user } = useAuthContext();
+
+  // Update local attendee count when prop changes
+  useEffect(() => {
+    setLocalAttendeeCount(attendeeCount);
+  }, [attendeeCount]);
+
+  // Check if user has already joined (optional: check from localStorage or API)
+  useEffect(() => {
+    if (user?.email && eventId) {
+      const joinedEvents = JSON.parse(
+        localStorage.getItem("joinedEvents") || "{}"
+      );
+      setIsJoined(joinedEvents[eventId] === true);
+    }
+  }, [user, eventId]);
 
   const handleJoinClick = async () => {
     // Prevent multiple clicks or if already joined
@@ -30,12 +47,14 @@ const EventCard = ({
     // Check if user is authenticated
     if (!user?.email) {
       setError("Please sign in to join events");
+      setTimeout(() => setError(null), 3000);
       return;
     }
 
     // Check if eventId is provided
     if (!eventId) {
       setError("Event ID is missing");
+      setTimeout(() => setError(null), 3000);
       return;
     }
 
@@ -43,6 +62,8 @@ const EventCard = ({
     setError(null);
 
     try {
+      console.log("🚀 Joining event:", { eventId, email: user.email });
+
       const response = await fetch("/api/event-signup", {
         method: "POST",
         headers: {
@@ -50,35 +71,56 @@ const EventCard = ({
         },
         body: JSON.stringify({
           email: user.email,
-          eventId: eventId,
+          eventId: eventId, // ✅ Send eventId to backend
           userDisplayName: user.displayName || null,
           userId: user.uid,
         }),
       });
 
+      // Parse response
+      const data = await response.json();
+
       // Check if response is ok
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.message || `HTTP ${response.status}: Failed to join event`
+          data.message || `HTTP ${response.status}: Failed to join event`
         );
       }
 
-      const data = await response.json();
-
-      // Success handling
+      // ✅ Success handling
       setIsJoined(true);
-      onActionClick(data); // Pass response data to parent component
+      setLocalAttendeeCount((prev) => prev + 1);
 
-      // Optional: Show success toast/notification
-      console.log("Successfully joined event:", data);
+      // Save to localStorage to persist join status
+      const joinedEvents = JSON.parse(
+        localStorage.getItem("joinedEvents") || "{}"
+      );
+      joinedEvents[eventId] = true;
+      localStorage.setItem("joinedEvents", JSON.stringify(joinedEvents));
+
+      // Call parent callback with response data
+      if (onActionClick) {
+        await onActionClick(eventId, user.email);
+      }
+
+      console.log("✅ Successfully joined event:", data);
     } catch (error) {
-      console.error("Error joining event:", error);
+      console.error("❌ Error joining event:", error);
       setError(error.message || "Failed to join event. Please try again.");
+
+      // Clear error after 5 seconds
+      setTimeout(() => setError(null), 5000);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Calculate progress percentage
+  const progressPercentage = Math.min(
+    (localAttendeeCount / totalSlots) * 100,
+    100
+  );
+  const isFull = localAttendeeCount >= totalSlots;
 
   return (
     <div
@@ -104,7 +146,7 @@ const EventCard = ({
               : "bg-blue-600/90 border-blue-500/70 text-white"
           )}
         >
-          {isVirtual ? "Virtual Event" : "In-Person"}
+          {isVirtual ? "🌐 Virtual Event" : "📍 Physical Event"}
         </div>
       </div>
 
@@ -166,17 +208,79 @@ const EventCard = ({
           {description}
         </p>
 
+        {/* Attendee Progress Bar */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs text-white/80">
+            <span className="flex items-center gap-1.5">
+              <svg
+                className="w-4 h-4 text-purple-300"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                />
+              </svg>
+              <span className="font-semibold">{localAttendeeCount}</span> /{" "}
+              {totalSlots} attendees
+            </span>
+            <span className="font-medium">
+              {Math.round(progressPercentage)}%
+            </span>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-500",
+                isFull
+                  ? "bg-gradient-to-r from-red-500 to-orange-500"
+                  : progressPercentage > 80
+                  ? "bg-gradient-to-r from-yellow-500 to-orange-500"
+                  : "bg-gradient-to-r from-purple-500 to-indigo-500"
+              )}
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
+
+          {isFull && (
+            <p className="text-xs text-red-400 font-semibold animate-pulse">
+              ⚠️ Event is full
+            </p>
+          )}
+        </div>
+
         {/* Error Message */}
         {error && (
-          <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
-            <p className="text-red-200 text-sm">{error}</p>
+          <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg animate-shake">
+            <p className="text-red-200 text-sm flex items-center gap-2">
+              <svg
+                className="w-4 h-4 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              {error}
+            </p>
           </div>
         )}
 
         {/* Join Button */}
         <button
           onClick={handleJoinClick}
-          disabled={isJoined || isLoading || !user?.email}
+          disabled={isJoined || isLoading || !user?.email || isFull}
           className={cn(
             "w-full mt-4 py-3 px-6 rounded-xl",
             "border shadow-lg",
@@ -189,8 +293,11 @@ const EventCard = ({
               ? "bg-gradient-to-r from-purple-500/70 to-indigo-500/70 border-purple-400/20 shadow-purple-500/10"
               : !user?.email
               ? "bg-gradient-to-r from-gray-500 to-gray-600 border-gray-400/30 shadow-gray-500/20 cursor-not-allowed"
+              : isFull
+              ? "bg-gradient-to-r from-red-500/70 to-orange-500/70 border-red-400/30 shadow-red-500/20 cursor-not-allowed"
               : "bg-gradient-to-r from-purple-500 to-indigo-500 border-purple-400/30 shadow-purple-500/20 hover:from-purple-400 hover:to-indigo-400 hover:border-purple-300/50 hover:shadow-xl hover:shadow-purple-500/40 hover:-translate-y-1 hover:scale-[1.02] active:scale-[0.98]",
-            (isJoined || isLoading || !user?.email) && "cursor-not-allowed"
+            (isJoined || isLoading || !user?.email || isFull) &&
+              "cursor-not-allowed"
           )}
         >
           {isLoading && (
@@ -242,6 +349,8 @@ const EventCard = ({
               </>
             ) : !user?.email ? (
               "Sign In to Join"
+            ) : isFull ? (
+              "Event Full"
             ) : (
               <>
                 Join Event

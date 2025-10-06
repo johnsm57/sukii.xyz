@@ -1,26 +1,24 @@
 "use client";
 
 // EventDashboard.js
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Plus, Calendar, Users, MapPin } from "lucide-react";
 import StatsCard from "./components/StatsCard";
 import EventCard from "./components/EventCard";
 import CreateEventModal from "./components/CreateEventModal";
-import EditEventModal from "./components/EditEventModal";
 import AttendeesModal from "./components/AttendeesModal";
+import axios from "axios";
 
 const EventDashboard = () => {
   const [events, setEvents] = useState([]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showAttendeesModal, setShowAttendeesModal] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState(null);
   const [currentEvent, setCurrentEvent] = useState({
     title: "",
     name: "",
     description: "",
     date: "",
+    time: "",
     medium: "virtual",
     imgUrl: null,
   });
@@ -32,6 +30,7 @@ const EventDashboard = () => {
       title: "",
       name: "",
       date: "",
+      time: "",
       description: "",
       medium: "virtual",
       imgUrl: null,
@@ -44,6 +43,8 @@ const EventDashboard = () => {
       !currentEvent.title ||
       !currentEvent.description ||
       !currentEvent.date ||
+      !currentEvent.time ||
+      !currentEvent.description ||
       !currentEvent.imgUrl ||
       !currentEvent.medium
     ) {
@@ -51,6 +52,7 @@ const EventDashboard = () => {
       if (!currentEvent.title) missing.push("title");
       if (!currentEvent.description) missing.push("description");
       if (!currentEvent.date) missing.push("date");
+      if (!currentEvent.time) missing.push("time");
       if (!currentEvent.imgUrl) missing.push("image");
       if (!currentEvent.medium) missing.push("medium");
 
@@ -70,6 +72,7 @@ const EventDashboard = () => {
           title: currentEvent.title,
           description: currentEvent.description,
           date: currentEvent.date,
+          time: currentEvent.time,
           imgUrl: currentEvent.imgUrl,
           eventMedium: currentEvent.medium,
         }),
@@ -95,62 +98,62 @@ const EventDashboard = () => {
       resetForm();
     } catch (error) {
       console.error("Create event error:", error);
-      setError(`Failed to create event: ${error.message}`);
+      setError(`Failed to create event: ${(error.message, error.toString())}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEditEvent = () => {
-    if (!currentEvent.title || !currentEvent.name || !currentEvent.description)
-      return;
-
-    setEvents(
-      events.map((event) =>
-        event.id === selectedEvent.id ? { ...event, ...currentEvent } : event
-      )
-    );
-    setShowEditModal(false);
-    setSelectedEvent(null);
-    resetForm();
-  };
-
   const handleDeleteEvent = (eventId) => {
-    setEvents(events.filter((event) => event.id !== eventId));
+    setEvents(events.filter((event) => event._id !== eventId));
   };
 
-  const openEditModal = (event) => {
-    setSelectedEvent(event);
-    setCurrentEvent({
-      title: event.title,
-      name: event.name,
-      description: event.description,
-      medium: event.medium,
-      thumbnail: event.thumbnail,
-      date: event.date,
-    });
-    setShowEditModal(true);
-  };
+  const [showAttendeesModal, setShowAttendeesModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
 
-  const openAttendeesModal = (event) => {
+  const openAttendeesModal = async (event) => {
     setSelectedEvent(event);
     setShowAttendeesModal(true);
+
+    try {
+      //Fetch fresh attendee data for this specific event
+      const response = await axios.get(
+        `/api/fetch-event-signups/${event._id}/attendees`
+      );
+      const attendeesData = response.data?.data;
+      console.log("Attendees Data:", attendeesData);
+      // Update selected event with fresh data
+      setSelectedEvent({
+        ...event,
+        attendeesEmail: attendeesData?.attendees,
+      });
+    } catch (error) {
+      console.error("Error fetching attendees:", error);
+    }
   };
 
   const totalEvents = events.length;
 
   // Fixed: Add null checks and default values
-  const totalAttendees = events.reduce(
-    (total, event) => total + (event.joinedPeople?.length || 0),
-    0
-  );
+  const totalAttendees = Array.isArray(events)
+    ? events.reduce(
+        (total, event) => total + (event?.joinedPeople?.length || 0),
+        0
+      )
+    : 0;
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const response = await axios.get("/api/fetch-events");
+        const eventsArray = response.data?.data || [];
+        setEvents(eventsArray);
+      } catch (error) {
+        console.error("Error fetching events:", error);
+      }
+    };
 
-  const availableSlots = events.reduce((total, event) => {
-    const joined = event.joinedPeople?.length || 0;
-    const total_slots = event.totalSlots || 0;
-    return total + Math.max(0, total_slots - joined);
-  }, 0);
-
+    fetchEvents();
+  }, []);
   return (
     <div className="min-h-screen bg-gray-900">
       {/* Header */}
@@ -190,23 +193,17 @@ const EventDashboard = () => {
             icon={Users}
             iconColor="text-green-400"
           />
-          <StatsCard
-            title="Available Slots"
-            value={availableSlots}
-            icon={MapPin}
-            iconColor="text-purple-400"
-          />
         </div>
 
         {/* Events Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {events.map((event) => (
             <EventCard
-              key={event.id}
+              key={event._id}
+              eventId={event._id} // Pass eventId separately
               event={event}
-              onEdit={openEditModal}
-              onDelete={handleDeleteEvent}
-              onViewAttendees={openAttendeesModal}
+              onDelete={() => handleDeleteEvent(event._id)}
+              onViewAttendees={() => openAttendeesModal(event)}
             />
           ))}
 
@@ -243,6 +240,14 @@ const EventDashboard = () => {
         onSave={handleCreateEvent}
         error={error}
         loading={loading}
+      />
+      <AttendeesModal
+        isOpen={showAttendeesModal}
+        onClose={() => {
+          setShowAttendeesModal(false);
+          setSelectedEvent(null);
+        }}
+        event={selectedEvent}
       />
     </div>
   );

@@ -9,35 +9,26 @@ const eventEmailSignupSchema = new mongoose.Schema({
   },
 });
 
-export const EventEmailSignup = mongoose.model(
-  "EventEmailSignup",
-  eventEmailSignupSchema
-);
+export const EventEmailSignup =
+  mongoose.model.EventEmailSignup ||
+  mongoose.model("EventEmailSignup", eventEmailSignupSchema);
 
 const eventSchema = new mongoose.Schema(
   {
-    title: {
-      type: String,
-      required: true,
-    },
-    description: {
-      type: String,
-      required: true,
-    },
-    date: {
-      type: Date,
-      required: true,
-    },
-    imgUrl: {
-      type: String,
-      required: true,
-    },
-    attendeesEmail: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "EventEmailSignup",
-    },
+    title: { type: String, required: true },
+    description: { type: String, required: true },
+    date: { type: Date, required: true },
+    time: { type: String, required: true },
+    imgUrl: { type: String, required: true },
+    totalSlots: { type: Number, default: 50 },
+    attendeesEmail: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "EventEmailSignup",
+      },
+    ],
     eventMedium: {
-      type: String, // Changed from Boolean to String
+      type: String,
       enum: ["virtual", "physical"],
       default: "virtual",
     },
@@ -45,4 +36,5 @@ const eventSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const Event = mongoose.model("Event", eventSchema);
+export const Event =
+  mongoose.models.Event || mongoose.model("Event", eventSchema);
