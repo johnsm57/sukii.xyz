@@ -1,4 +1,4 @@
-import imagekit from "@/lib/imagekit";
+import imagekit from "@/shared/utils/imagekit";
 import { NextResponse } from "next/server";
 
 export async function GET() {
