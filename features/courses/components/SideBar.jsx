@@ -14,9 +14,11 @@ import Logo from "@/public/logos/orbital-logo-full.svg";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { useAuth } from "@/features/authentication";
 
 export default function SideBar() {
   const [isOpen, setIsOpen] = useState(false);
+  const { logout } = useAuth(); // Get logout function from context
 
   const navLinks = [
     { name: "CCSA", icon: Computer, href: "/courses/categories/CCSA" },
@@ -166,7 +168,10 @@ export default function SideBar() {
         {/* Bottom Navigation */}
         <div className="space-y-2 mt-8">
           {/* Log out */}
-          <div className="hover:bg-slate-800 transition-colors duration-200 rounded-lg p-3 flex items-center space-x-3 cursor-pointer">
+          <div
+            className="hover:bg-slate-800 transition-colors duration-200 rounded-lg p-3 flex items-center space-x-3 cursor-pointer"
+            onClick={logout}
+          >
             <LogOut className="w-5 h-5 text-gray-400" />
             <span className="text-gray-400 font-medium">Log out</span>
           </div>

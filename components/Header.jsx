@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X, Globe } from "lucide-react";
+import { Menu, X, Globe, User2Icon, LogOutIcon } from "lucide-react";
 import orbitalLogo from "@/public/logos/orbital-logo-full.svg";
+import { useAuth } from "@/features/authentication";
 
 export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTranslateLoaded, setIsTranslateLoaded] = useState(false);
-
+  const { isAuthenticated, logout } = useAuth();
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
@@ -20,6 +21,7 @@ export default function Header() {
     { name: "About Us", href: "/about" },
     { name: "Events", href: "/events" },
     { name: "Testing", href: "/testing" },
+    { name: "Careers", href: "/careers" },
   ];
 
   // Aggressive banner removal function - targets specific iframe
@@ -227,6 +229,17 @@ export default function Header() {
               ))}
             </nav>
 
+            {/* Account */}
+            {isAuthenticated && (
+              <div
+                className="hidden md:flex items-center space-x-4 hover:text-[#8500d1] hover:cursor-pointer"
+                onClick={logout}
+              >
+                <User2Icon className="w-6 pl-2" style={{ marginRight: "0" }} />
+                <span className="ml-2">Logout</span>
+              </div>
+            )}
+
             {/* Right side - Language Selector + Mobile Menu */}
             <div className="flex items-center space-x-4">
               {/* Language Selector - Desktop */}
@@ -269,6 +282,16 @@ export default function Header() {
                     {item.name}
                   </Link>
                 ))}
+
+                {/* Account */}
+                {isAuthenticated && (
+                  <div
+                    className="px-1 py-2 flex items-center space-x-4 hover:text-[#8500d1] hover:cursor-pointer"
+                    onClick={logout}
+                  >
+                    <LogOutIcon className="w-6 pl-2" style={{ marginRight: "0" }} />
+                  </div>
+                )}
 
                 {/* Language Selector - Mobile */}
                 <div className="flex items-center space-x-2 px-3 py-2">

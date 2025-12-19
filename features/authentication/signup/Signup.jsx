@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import RegisterImage from "@/public/register-image.svg";
 import Image from "next/image";
@@ -18,7 +18,7 @@ export default function Signup() {
   // Auth hook and router with safety check
   const { loginWithGoogle, isAuthenticated } = useAuth();
   const router = useRouter();
-
+  const searchParams = useSearchParams();
   // Add a mounted state to prevent router usage before component is mounted
   const [isMounted, setIsMounted] = useState(false);
 
@@ -28,10 +28,15 @@ export default function Signup() {
 
   // Redirect if already authenticated - only after component is mounted
   useEffect(() => {
-    if (isMounted && isAuthenticated && router) {
-      router.push("/courses");
+    if (isAuthenticated) {
+    const redirectPath = searchParams.get('page');
+    if (redirectPath) {
+      router.push(redirectPath);
+    } else {
+      router.push('/'); // Default redirect
     }
-  }, [isAuthenticated, router, isMounted]);
+  }
+  }, [isAuthenticated]);
 
   // Google signup handler
   const handleGoogleSignup = async () => {
