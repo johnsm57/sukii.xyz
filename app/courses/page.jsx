@@ -109,7 +109,7 @@ function CourseCard({ course }) {
 
 function Courses() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute redirectTo="/register?page=courses">
       <div className="flex min-h-screen bg-gray-900">
         <SideBar />
 
